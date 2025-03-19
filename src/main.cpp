@@ -15,7 +15,6 @@ TFT_eSPI tft = TFT_eSPI();           // TFT object
 
 TFT_eSprite spr = TFT_eSprite(&tft); // Sprite object
 
-
 void setup() {
   Serial.begin(115200); // Debug only
   Serial.println("\n\n Started");
@@ -43,6 +42,3 @@ void loop() {
   delay(3000);
   tft.fillScreen(random(0x10000));
 }
-
-
-
