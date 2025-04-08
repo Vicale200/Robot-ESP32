@@ -1,44 +1,73 @@
-void pngDraw(struct png_draw_tag);
-
 #include <Arduino.h>
-#include "dog.h"
+#include "idle_eye_emotion.h"  // Frames en PROGMEM
 #include <TFT_eSPI.h>
-#include <PNGdec.h>
 
-PNG png; 
-#define MAX_IMAGE_WIDTH 320 // Adjust for your images
+TFT_eSPI tft = TFT_eSPI();
 
-int16_t xpos = 0;
-int16_t ypos = 0;
+const int totalFrames = 14;
+const int idleTime = 2500;
+const int frameDelay = 4;
+uint32_t previousMillis = 0;
+int currentFrame = 0;
+bool isIdle = true;
 
-TFT_eSPI tft = TFT_eSPI();           // TFT object
+const int frameWidth = 160;
+const int frameHeight = 85;
+const int screenWidth = 320;
+const int screenHeight = 170;
+uint16_t lineBuffer[screenWidth]; // Buffer para una línea de la imagen
 
-TFT_eSprite spr = TFT_eSprite(&tft); // Sprite object
+static const uint16_t* idleFrames[] = {
+  idle_001, idle_002, idle_003, idle_004, idle_005, idle_006, idle_007,
+  idle_008, idle_009, idle_010, idle_011, idle_012, idle_013, idle_014
+};
+
+void drawScaledFrame(const uint16_t* frame) {
+  for (int y = 0; y < frameHeight; y++) {
+    for (int x = 0; x < frameWidth; x++) {
+      uint16_t color = pgm_read_word(&frame[y * frameWidth + x]);
+      
+      int sx = x * 2;
+      lineBuffer[sx] = color;
+      lineBuffer[sx + 1] = color;
+    }
+    tft.pushImage(0, y * 2, screenWidth, 1, lineBuffer);
+    tft.pushImage(0, y * 2 + 1, screenWidth, 1, lineBuffer);
+  }
+}
 
 void setup() {
-  Serial.begin(115200); // Debug only
-  Serial.println("\n\n Started");
-  tft.begin();  // initialize
+  Serial.begin(9600);
+  Serial.print("ST7789 TFT Animación de Pestañeo");
+
+  tft.begin();
+  tft.setSwapBytes(true);
+  tft.setRotation(3);
   tft.fillScreen(TFT_BLACK);
-  tft.setRotation(0);
+
+  drawScaledFrame(idleFrames[0]);  
+  previousMillis = millis();
 }
-void pngDraw(PNGDRAW *pDraw) {
-  uint16_t lineBuffer[MAX_IMAGE_WIDTH];
-  png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xffffffff);
-  tft.pushImage(xpos, ypos + pDraw->y, pDraw->iWidth, 1, lineBuffer);
-}
+
 void loop() {
-  int16_t rc = png.openFLASH((uint8_t *)dog, sizeof(dog), pngDraw);
-  if (rc == PNG_SUCCESS) {
-    Serial.println("Successfully opened png file");
-    Serial.printf("image specs: (%d x %d), %d bpp, pixel type: %d\n", png.getWidth(), png.getHeight(), png.getBpp(), png.getPixelType());
-    tft.startWrite();
-    uint32_t dt = millis();
-    rc = png.decode(NULL, 0);
-    Serial.print(millis() - dt); Serial.println("ms");
-    tft.endWrite();
-    // png.close(); // not needed for memory->memory decode
+  uint32_t currentMillis = millis();
+
+  if (isIdle) {
+    if (currentMillis - previousMillis >= idleTime) {
+      isIdle = false;
+      previousMillis = currentMillis;
+    }
+  } else {
+    if (currentMillis - previousMillis >= frameDelay) {
+      previousMillis = currentMillis;
+      currentFrame++;
+
+      if (currentFrame >= totalFrames) {
+        currentFrame = 0;
+        isIdle = true;
+      }
+
+      drawScaledFrame(idleFrames[currentFrame]);
+    }
   }
-  delay(3000);
-  tft.fillScreen(random(0x10000));
 }
